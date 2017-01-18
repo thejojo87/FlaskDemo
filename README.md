@@ -278,4 +278,36 @@ pip install flask-moment
 第三章结束
 
 
+# 第四章 Web 表单
+pip install flask-wtf
 
+## 4.1 跨站请求伪造保护
+
+为了csrf，需要个秘锁，wtf用这个生成加密令牌，然后用这个判断表单数据的真伪。
+这里在hello.py 里app.config['SECRET_KEY'] 来生成。不过不该放在源代码就是了。
+
+
+## 4.2 表单类
+需要先建一个表单类。
+引用，然后新建一个NameForm
+
+这里需要注意一下，Required wtforms 3.0里就不用了，使用DataRequired.
+还有一些比如email,url等等
+
+## 4.3 把表单渲染成HTML
+没什么可说的，bootstrap已经有了自定义的表。
+base里引用就是了。
+
+## 4.4 在视图函数中处理表单
+这个也很简单，就是修改下路由index函数就是了。
+不过让我意外的是，空submit的时候的提示，请填写，这个居然是中文。
+在哪里设定的？
+
+## 4.5 重定向和用户会话
+如果最后一个是post，那么用户刷新的时候会有问题。
+所以后面加一个重定向。
+但是这样，表单数据也会消失，所以要把数据保存在session里。
+
+## 4.6 Flash消息
+现在route里，添加flash逻辑
+然后在base里，渲染flash消息
