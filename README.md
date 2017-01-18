@@ -1,6 +1,11 @@
 # FlaskDemo
 [TOC]
 
+# 资源
+作者的github主页
+https://github.com/miguelgrinberg/flasky/tree/3d
+
+
 # 第一章 virtualenv
 没什么可说的，就是virtualenv，不过没必要，我就没用这个了。
 
@@ -140,3 +145,137 @@ if __name__ == '__main__':
     dev()
     manager.run()
 ```
+
+# 第三章 模板
+
+业务逻辑和表现逻辑。
+表现逻辑放到模板。
+
+## 3.1 jinja2模板引擎
+就在templates文件夹里，写html
+然后route里传递html名字和变量名
+
+变量名 左边是html占位符，右边是变量
+
+用的是render_template 来return
+
+### 3.1.2 变量
+
+变量可以添加过滤器 比如：
+safe这个就不会转义 capitalize 首字母大写 等等
+
+### 3.1.3 控制结构
+
+一共有三种=if else -macro - 继承
+
+第一个很简单：
+
+1. if else
+
+```jinja2
+{% if user %}
+    Hello， {{user}}
+{% else %}
+    Hello， stranger！
+{% endif %}
+```
+
+2. macro
+
+```html
+{% macro render_comment(comment) %}
+    <li>{{ comment }}</li>
+{% endmacro %}
+
+<ul>
+    {% for comment in comments %}
+        {{ render_comment(comment) }}
+    {% endfor %}
+</ul>
+
+为了重复使用宏，可以保存在单独的文件中，然后在需要使用的模板上导入
+
+{% import 'macro.html' as macros %}
+<ul>
+    {% for comment in comments %}
+        {{ macros.render_comment(comment) }}
+    {% endfor %}
+</ul>
+
+需要多次重复的模板代码可以写入单独的文件，再包含在所有的片段里，
+{% include 'common.html' %}
+```
+
+3. 继承
+base.html
+
+```python
+{% block head %}
+    这里添加内容
+{% endblock %}
+
+{% extends "base.html" %}
+{% block head %}
+    可以使用了，如果原来的模板不是空的,那么可以使用
+    {{ super }}
+{% endblock %}
+```
+
+
+## 3.2 使用flask-bootstrap集成
+pip install flask-bootstrap
+
+先去 hello.py 初始化app
+from flask.ext.bootstrap import Bootstrap
+
+bootstrap = Bootstrap(app)
+
+再去user.html使用
+
+flask-bootstrap已经定义了模板
+所以
+{% extends "bootstrap/base.html" %}就可以了
+不过如果想在已经有的块里添加东西，比如javascript
+就依然用super函数
+
+```html
+{% block script %}
+{{ super }}
+要添加的script
+{%end block %}
+```
+
+## 3.3 自定义错误页面
+404 和500 编写自定义页面
+
+路由先写上，然后html
+
+很简单。就不写了
+
+## 3.4 链接
+动态路由-url_for()函数
+
+url_for('index',_external=True)external就是绝对地址
+可以传入关键字参数
+url_for('index', name='john',_external=True)
+
+## 3.5 静态文件
+都在static文件夹里
+url_for('static', filename='css/styles.css',_external=True)
+这里添加了个浏览器里项目图标。
+去作者github里，下图。吓到static文件夹里。
+https://github.com/miguelgrinberg/flasky/tree/3d
+
+## 3.6 使用flask-moment 本地化日期和时间
+第一步：安装
+pip install flask-moment
+然后去app注册。
+然后在base里，script block引用。这里想要中文的话，添加
+{{ moment.lang("zh-CN") }}
+然后去index函数。传入data变量
+最后去修改index template
+
+第三章结束
+
+
+
