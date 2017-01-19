@@ -26,8 +26,12 @@ import os
 from flask_script import Shell
 
 # 数据库迁移-5-11
-from flask.ext.migrate import Migrate,MigrateCommand
+from flask_migrate import Migrate,MigrateCommand
 
+# 电子邮件-6
+from flask_mail import Mail
+from flask_mail import Message
+from threading import Thread #多线程
 
 app = Flask(__name__)
 app.debug = True
@@ -46,6 +50,38 @@ app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = True
 db = SQLAlchemy(app)
 migrate = Migrate(app)
 manager.add_command('db', MigrateCommand)
+
+
+
+# 第六章-邮件参数
+app.config['MAIL_SERVER'] = 'smtp.qq.com'
+app.config['MAIL_PORT'] = 465
+app.config['MAIL_USE_SSL'] = True
+# app.config['MAIL_USERNAME'] = os.environ.get('MAIL_USERNAME')
+# app.config['MAIL_PASSWORD'] = os.environ.get('MAIL_PASSWORD')
+app.config['MAIL_USERNAME'] = os.environ['MAIL_USERNAME'] # qq号码
+app.config['MAIL_PASSWORD'] = os.environ['MAIL_PASSWORD'] # qq的验证码
+app.config['FLASKY_MAIL_SUBJECT_PREFIX'] = '[Flasky]' # 前缀
+app.config['FLASKY_MAIL_SENDER'] = os.environ['MAIL_SENDER'] # 发送人
+app.config['FLASKY_ADMIN'] = os.environ['FLASKY_ADMIN']  # 管理员的邮箱
+
+
+mail = Mail(app)
+
+# 发邮件的函数-第六章
+def send_email(to,subject,template,**kwargs):
+    msg = Message(app.config['FLASKY_MAIL_SUBJECT_PREFIX'] + subject,
+                  sender=app.config['FLASKY_MAIL_SENDER'],recipients=[to])
+    msg.body = render_template(template + '.txt', **kwargs)
+    msg.html = render_template(template + '.html', **kwargs)
+    thr = Thread(target = send_async_email, args = [app, msg])
+    thr.start()
+    return thr
+
+# 多线程电子邮件-第六章
+def send_async_email(app, msg):
+    with app.app_context():
+        mail.send(msg)
 
 
 # 为shell命令注册个回调函数
@@ -98,6 +134,10 @@ def index():
             user = User(username = form.name.data)
             db.session.add(user)
             session['known'] = False
+            if app.config['FLASKY_ADMIN']:
+                send_email(app.config['FLASKY_ADMIN'], 'New User',
+                           'mail/new_user', user = user)
+
         else:
             session['known'] = True
         session['name'] = form.name.data

@@ -527,3 +527,133 @@ UserWarning: SQLALCHEMY_TRACK_MODIFICATIONS adds significant overhead and will b
 (venv) $ python hello.py db upgrade
 ```
 
+# 第六章 电子邮件
+
+pip install flask-mail
+
+配置mail参数。
+
+
+
+然后配置一下邮件的函数
+
+```python
+app.config['MAIL_SERVER'] = 'smtp.qq.com'
+app.config['MAIL_PORT'] = 465
+app.config['MAIL_USE_SSL'] = True
+# app.config['MAIL_USERNAME'] = os.environ.get('MAIL_USERNAME')
+# app.config['MAIL_PASSWORD'] = os.environ.get('MAIL_PASSWORD')
+app.config['MAIL_USERNAME'] = 'qq号码'
+app.config['MAIL_PASSWORD'] = '这个就是坑，qq邮箱改了安全设置，第三方客户端，登陆要授权码，而不是密码。'
+```
+
+不应该把密码和邮件地址放在自己的文件里,应该在环境里设置才对.
+
+然后注册mail模块
+
+```python
+from flask.ext.mail import Mail
+
+mail = Mail(app)
+```
+
+测试一下:
+
+```python
+from flask_mail import Message
+from Hello import mail
+msg = Message('test sybhect', sender='267222987@qq.com', recipients=['267222987@qq.com'])
+msg.body='text bioy'
+msg.html='<b>HTML</b>'
+with app.app_context():
+    mail.send(msg)
+
+
+```
+
+一开始总是提示拒绝,代码为mail ConnectionRefusedError: [Errno 61] Connection refused.
+死活不行,我突然看到一个答案.
+mail = Mail(app)
+
+我把app的config设置在了这一句的前面.
+设置后,再放进去.结果就可以了.
+就是初始化有问题.
+
+变量如何传递?
+原文里是在venv环境下设置的全局变量-储存了用户名和密码.
+
+我首先设置了全局变量.
+发现无论在term里还是在console,还是在哪里都是None.
+
+现在有两个思路:
+
+一个是启动的时候,传递variable进去.
+
+还是寻找全局变量呢?
+
+不知道发布的时候会不会有影响.
+
+pycharm里添加变量后,用法是:
+
+```python
+
+app.config['MAIL_USERNAME'] = os.environ['MAIL_USERNAME']
+app.config['MAIL_PASSWORD'] = os.environ['MAIL_PASSWORD']
+```
+
+## 程序中集成发送电子邮件功能
+
+要把send email的功能写成一个函数
+在Hello.py里写
+
+```python
+app.config['FLASKY_MAIL_SUBJECT_PREFIX'] = '[Flasky]' # 前缀
+app.config['FLASKY_MAIL_SENDER'] = os.environ['MAIL_SENDER'] # 发送人
+app.config['FLASKY_ADMIN'] = os.environ['FLASKY_ADMIN']  # 管理员的邮箱
+
+# 发邮件的函数-第六章
+def send_email(to,subject,template,**kwargs):
+    msg = Message(app.config['FLASKY_MAIL_SUBJECT_PREFIX'] + subject,
+                  sender=app.config['FLASKY_MAIL_SENDER'],recipients=[to])
+    msg.body = render_template(template + '.txt', **kwargs)
+    msg.html = render_template(template + '.html', **kwargs)
+    mail.send(msg)
+```
+
+再修改index函数，当表单接收新名字的时候，发送邮件给管理员邮箱
+在index函数里添加这个
+
+```python
+            if app.config['FLASKY_ADMIN']:
+
+                send_email(app.config['FLASKY_ADMIN'], 'New User',
+                            'mail/new_user', user=user)
+```
+
+别忘了再templates里新建一个mail文件夹，再新建两个模板文件
+
+## 异步发送电子邮件
+
+
+```python
+from threading import Thread
+
+def send_async_email(app, msg):
+    with app.app_context():
+        mail.send(msg)
+
+def send_email(to, subject, template, **kwargs):
+    msg = Message(app.config['FLASKY_MAIL_SUBJECT_PREFIX'] + ' ' + subject,
+                  sender=app.config['FLASKY_MAIL_SENDER'], recipients=['267222987@qq.com'])
+    msg.body = render_template(template + '.txt', **kwargs)
+    msg.html = render_template(template + '.html', **kwargs)
+    thr = Thread(target=send_async_email, args=[app, msg])
+    thr.start()
+    return thr
+```
+
+发送邮件移到线程里面去执行，缺点是每一个邮件都要新建一个线程不太合适，
+改进方法是将send_async_email()函数的操作发给Celery任务队列。
+celeryproject.org
+
+
