@@ -2,9 +2,12 @@
 [TOC]
 
 # 资源
+
 作者的github主页
 https://github.com/miguelgrinberg/flasky/tree/3d
 
+写的不错的总结
+https://github.com/Junctionzc/flask-blog
 
 # 第一章 virtualenv
 没什么可说的，就是virtualenv，不过没必要，我就没用这个了。
@@ -311,3 +314,216 @@ base里引用就是了。
 ## 4.6 Flash消息
 现在route里，添加flash逻辑
 然后在base里，渲染flash消息
+
+# 第五章 数据库
+这里就需要一个orm了。
+之前在廖雪峰的教程里，花了300行代码写过一个orm。
+就是把指令换算成数据库语言。
+
+这里使用了Flask-SQLAlchemy
+pip install flask-sqlalchemy
+
+使用什么数据库是个问题
+mac下没有问题，但是windows下可能会有问题。
+而且原来使用的是sqlite。但是实际上肯定要用mysql
+试一下吧。
+不用sqlite。
+windows下，用mysql
+
+## 5.5 配置数据库
+首先需要pymysql
+然后app config 修改。
+命令行启动mysql的办法是
+进入mysql/bin目录 cd C:\Program Files\MySQL\MySQL Server 5.7\bin
+
+mysql -u root -p
+
+他妈的，密码居然是www-data
+
+重新安装了mysql。
+整个安装过程并没有看到任何设置utf-8的选项。
+就此跳过去。
+
+安装的时候，让设置密码。我直接设置了root
+安装后，出现两个mysql-还有一个是mysql57。
+这都是数据库。
+一个是服务器，另一个是客户端。
+进入 上面写的57目录，然后启动。就是57客户端。
+
+这里有比较简单的数据库教程。
+http://www.runoob.com/mysql/mysql-administration.html
+
+教程里是使用了sqlite，这个会自动创建数据库。
+而mysql链接的时候是要提供数据库名字的。
+所以必须先见一个数据库。
+create database flasky;
+
+show databases;
+show tables;
+
+
+
+## 5.6 定义模型
+
+这里就是建数据模型了
+
+
+## 5.7 关系
+
+## 5.8 数据库操作
+实际操作试一下。
+C:\Users\chn_t\Desktop\coding\python-FlaskDemo>C:\Users\chn_t\AppData\Local\Programs\Python\Python35\python.exe C:\Users\chn_t\Desktop\coding\python-FlaskDemo\Hello.py shell
+
+from Hello import db
+db.create_all()
+结果出来一个warning
+C:\Users\chn_t\AppData\Local\Programs\Python\Python35\lib\site-packages\pymysql\cursors.py:166: Warning: (1366, "Incorrect string value: '\\xD6\\xD0\\xB9\\xFA\\xB1\\xEA...' for column 'VARIABLE_VALUE' at row 480")
+  result = self._query(query)
+
+应该是utf-8编码问题，不过数据库倒是顺利连接上了。
+
+但是当我db.drop_all()之后，重新createall就没有这个warning了。怪了。
+stackoverflow说，是因为mysql的utf8只允许3字节。
+而有些字母需要4个字节。
+解决办法是修改character_set_server=utf8mb4
+这里比较详细
+https://mathiasbynens.be/notes/mysql-utf8mb4
+
+
+```mysql
+>>> db.create_all()
+>>> admin_role = Role(name='Admin')
+>>> mod_role = Role(name='Moderator')
+>>> user_role = Role(name='User')
+>>> db.session.add(admin_role)
+>>> db.session.commit()
+```
+
+赋值之后，添加session，最后commit才算写进去了。
+
+数据库操作无非就是增删改查
+
+**数据库操作**
+
+1.创建表：
+```
+启动python shell：
+(venv) $ python hello.py shell
+>>> from hello import db
+>>> db.create_all()
+```
+2.添加一些角色和用户：
+```
+>>> from hello import Role, User
+>>> admin_role = Role(name = 'Admin')
+>>> mod_role = Role(name='Moderator')
+>>> user_role = Role(name = 'User')
+>>> user_john = User(username='john', role=admin_role)
+>>> user_susan = User(username='susan', role=user_role)
+>>> user_david = User(username='david', role=user_role)
+db.session
+```
+3.添加到会话并提交会话以把对象写入数据库：
+```
+>>> db.session.add(admin_role)
+>>> db.session.add(user_role)
+>>> db.session.add(user_john)
+
+>>> db.session.commit()
+也可以一次全部加
+>>> db.session.add_all([user_role,user_john,user_susan,user_david])
+
+```
+
+4.查询行：
+```
+>>> Role.query.all()
+>>> User.query.all()
+```
+5.通过过滤器更精确查询行：
+```
+>>> User.query.filter_by(role=user_role).all()
+```
+
+关于查询的另外一个示例：
+```
+>>> user_role = Role.query.filter_by(name = 'User').first()
+```
+以上返回一个更精确的query对象。
+```
+>>> users = user_role.users
+```
+`user_role.users`表达式隐含的查询会调用all()返回一个用户列表，但无法指定更精确的查询过滤器。解决方法：修改关系设置，加入`lazy='dynamic'`参数，从而禁止自动查询：
+```
+class Role(db.Model):
+    # ...
+    users = db.realtionship('User', backref = 'role', lazy = 'dynamic')
+    # ...
+```
+配置之后，user_role.users会返回一个尚未执行的查询，因此可以在其上添加过滤器：
+```
+>>> user_role.users.order_by(User.username).all()
+```
+
+## 5.9 在视图函数中操作数据库
+
+修改下原来的index函数。
+首先查询form里的名字，在数据库里有没有。
+如果有，那么session-known设定为知道。
+如果没有，那么session里添加名字，并且known设定为假。
+然后form名字赋值给session-name。
+
+传递给html模板的是 session name和known参数。
+
+修改html模板
+只是增加了一个if else。
+如果known那么欢迎再见到，如果不是，欢迎。
+
+## 5.10 集成python shell
+每次启动shell，都要导入一遍db什么的太麻烦了。
+
+写个script，其实就是简单的返回一个dict,就是个回掉函数。
+为shell 命令注册一个回掉函数
+
+## 5.11 flask-migrate 实现数据迁移
+数据迁移的目的是为了当模型改变的时候，保留原来的数据，增量迁移。
+到第九章才会变更。现在其实没太大必要。
+
+先安装flask-migrate
+
+然后在Hello里，配置
+
+```python
+from flask.ext.migrate import Migrate,MigrateCommand
+
+migrate = Migrate(app)
+manager.add_command('db', MigrateCommand)
+```
+
+迁移之前，用 python hello.py db init 命令 创建仓库。
+会新建一个migrations文件夹
+windows里，python和py文件都要写上绝对路径。
+
+创建迁移脚本
+
+
+1.创建迁移仓库：
+```
+(venv) $ python hello.py db init
+```
+
+2.创建迁移脚本：
+```
+(venv) $ python hello.py db migrate -m "initial migration"
+```
+以上会报一个warning：
+```
+UserWarning: SQLALCHEMY_TRACK_MODIFICATIONS adds significant overhead and will be disabled by default in the future.  Set it to True to suppress this warning.
+```
+消除warning的方法：修改`venv/lib/python2.7/site-packages/flask_sqlalchemy/__inin__.py`第797行，将`track_modifications = app.config.setdefault('SQLALCHEMY_TRACK_MODIFICATIONS', None)`中的`None`改成`True`。
+
+3.更新数据库：
+```
+(venv) $ python hello.py db upgrade
+```
+
