@@ -48,8 +48,7 @@ app.config['SQLALCHEMY_COMMIT_ON_TEARDOWN'] = True
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = True
 
 db = SQLAlchemy(app)
-migrate = Migrate(app)
-manager.add_command('db', MigrateCommand)
+migrate = Migrate(app, db)
 
 
 
@@ -59,11 +58,11 @@ app.config['MAIL_PORT'] = 465
 app.config['MAIL_USE_SSL'] = True
 # app.config['MAIL_USERNAME'] = os.environ.get('MAIL_USERNAME')
 # app.config['MAIL_PASSWORD'] = os.environ.get('MAIL_PASSWORD')
-app.config['MAIL_USERNAME'] = os.environ['MAIL_USERNAME'] # qq号码
-app.config['MAIL_PASSWORD'] = os.environ['MAIL_PASSWORD'] # qq的验证码
+app.config['MAIL_USERNAME'] = os.environ.get('MAIL_USERNAME') # qq号码
+app.config['MAIL_PASSWORD'] = os.environ.get('MAIL_PASSWORD') # qq的验证码
 app.config['FLASKY_MAIL_SUBJECT_PREFIX'] = '[Flasky]' # 前缀
-app.config['FLASKY_MAIL_SENDER'] = os.environ['MAIL_SENDER'] # 发送人
-app.config['FLASKY_ADMIN'] = os.environ['FLASKY_ADMIN']  # 管理员的邮箱
+app.config['FLASKY_MAIL_SENDER'] = os.environ.get('MAIL_SENDER') # 发送人
+app.config['FLASKY_ADMIN'] = os.environ.get('FLASKY_ADMIN')  # 管理员的邮箱
 
 
 mail = Mail(app)
@@ -88,6 +87,7 @@ def send_async_email(app, msg):
 def make_shell_context():
     return dict(app = app, db = db, User = User, Role = Role)
 manager.add_command("shell", Shell(make_context = make_shell_context))
+manager.add_command('db', MigrateCommand)
 
 
 #数据库模型

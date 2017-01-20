@@ -504,7 +504,23 @@ manager.add_command('db', MigrateCommand)
 会新建一个migrations文件夹
 windows里，python和py文件都要写上绝对路径。
 
+这里又有个坑。运行之后，告诉我，此应用无法运行在此电脑上。
+win10.先跳过去吧
+
+C:\Users\chn_t\Desktop\coding\python-FlaskDemo>
+C:\Users\chn_t\AppData\Local\Programs\Python\Python35\python.exe C:\Users\chn_t\Desktop\coding\python-FlaskDemo\Hello.py db init
+拒绝访问。
+
+怎么突然pip install 不行了？
+是不是因为我没安装pip flask-migrate?
+突然发现整个python都不好用了
+
+
 创建迁移脚本
+
+创建仓库，有个坑，add command db是shell回掉函数下面的一个。
+而且不知道为什么，os.environ['MAIL']这些如果不注释掉，就无法创建。
+必须得os.environ.get('MAIL_USERNAME') 这样才可以。
 
 
 1.创建迁移仓库：
@@ -655,5 +671,203 @@ def send_email(to, subject, template, **kwargs):
 发送邮件移到线程里面去执行，缺点是每一个邮件都要新建一个线程不太合适，
 改进方法是将send_async_email()函数的操作发给Celery任务队列。
 celeryproject.org
+
+# 第七章 大型程序的结构
+
+因为在一个文件里写这么多复杂度太高了。
+所以要有个框架分散开来。
+这一章，有点难，我看的迷迷糊糊的。
+
+## 7.1 项目结构
+最顶级的是app文件夹-这里是各种模块-email，main，models,static,templates
+
+
+```
+.
+├── app
+│   ├── email.py
+│   ├── __init__.py
+│   ├── main
+│   │   ├── errors.py
+│   │   ├── forms.py
+│   │   ├── __init__.py
+│   │   └── views.py
+│   ├── models.py
+│   ├── static
+│   │   └── favicon.ico
+│   └── templates
+│       ├── 404.html
+│       ├── 500.html
+│       ├── base.html
+│       ├── index.html
+│       ├── mail
+│       │   ├── new_user.html
+│       │   └── new_user.txt
+│       └── user.html
+├── config.py
+├── manage.py
+├── migrations
+│   ├── alembic.ini
+│   ├── env.py
+│   ├── README
+│   ├── script.py.mako
+│   └── versions
+├── readme.md
+├── requirements.txt
+├── sqlite-example.png
+└── tests
+    ├── __init__.py
+    └── test_basics.py
+```
+
+![](Flasky-chapter7.png)
+
+## 7.2 配置选项-config
+
+config里有一个基本的大类-config，这里包括所有的必须包括的变量。
+config有一个 init_app方法，用来环境配置初始化。不过先写上空了。
+从这里衍生出3个不同的开发，测试，生产配置，只是数据库不同罢了。
+最后提供一个字典，来从外部引用。
+
+都很简单，没什么可说的，不过数据库，我懒得弄test和发布的了。
+都用一个数据库
+
+## 7.3 程序包-app包
+有三个文件夹，templates和static文件夹，还有个main。
+外面有models和email文件。
+main里有errors，forms，views。
+
+### 7.3.1 使用程序工厂函数
+单程序开发的缺点是无法动态修改配置。
+运行脚本的时候已经创建了程序实例。
+
+所以需要延迟创建程序实例，转移到工厂函数。
+create_app()是程序的工厂函数，接收程序的配置名，从flask的appfrom_object方法导入配置的字典
+最后返回程序实例。
+
+### 7.3.2 在蓝本中实现程序功能
+在原来的程序里，路由是全局的，但是现在app创建很晚。
+如果等create_app之后定义路由太晚了。
+
+所以出现了蓝本这个东西。
+蓝本也可以定义路由，不过处于休眠状态，直到蓝本注册为app之后，才融为一体。
+
+蓝本可以放在任何地方，不过main包主要用来放蓝本。
+蓝本需要两个参数，蓝本的名字，还有一个蓝本所在的包或者模块，不过正常用name就可以了。
+要注意末尾导入views里路由和error，是为了避免循环导入，因为这些也要导入main
+
+1. 创建蓝本
+
+```python
+app/main/__init__.py
+from flask import Blueprint
+main = Blueprint('main', __name__)
+from . import views,errors
+```
+
+2. 注册蓝本
+
+```python
+app/__init__.py
+
+    from .main import main as main_blueprint
+    app.register_blueprint(main_blueprint)
+```
+
+3. 在蓝本里编写错误处理程序和路由程序
+
+```python
+app/main/errors.py
+
+from flask import render_template
+from . import main
+
+
+@main.app_errorhandler(404)
+def page_not_found(e):
+    return render_template('404.html'), 404
+```
+
+这里需要澄清一下import概念。
+.表示当前目录。
+.forms表示同一目录下的forms文件,去掉.也可以貌似
+..上一级目录。也就是..__init__文件
+..email 上一级目录的同级email文件
+
+
+```python
+
+from datetime import datetime
+from flask import render_template, session, redirect, url_for, current_app
+
+from . import main
+from .forms import NameForm
+from ..email import send_email
+from ..models import User
+from .. import db
+
+@main.route('/', methods=['GET', 'POST'])
+def index():
+    # return 'Hello,World!'
+    form = NameForm()
+    if form.validate_on_submit():
+        user = User.query.filter_by(username = form.name.data).first()
+        if user is None:
+            user = User(username = form.name.data)
+            db.session.add(user)
+            session['known'] = False
+            if current_app.config['FLASKY_ADMIN']:
+                send_email(current_app.config['FLASKY_ADMIN'], 'New User',
+                           'mail/new_user', user = user)
+
+        else:
+            session['known'] = True
+        session['name'] = form.name.data
+        return redirect(url_for('.index'))
+
+    return render_template('index.html',form = form, name = session.get('name'),
+                           known = session.get('known',False),current_time=datetime.utcnow())
+
+```
+
+这里两个点不一样。
+
+1. app.route,变成main.route,由蓝本提供
+2. url_for()原来直接index获取。但是现在需要加上blueprint名称.index。默认写法是.index
+
+剩下就是完成修改email.py 和models.py了。
+很简单，email里注意一下引用。Mail是在init里注册的。
+
+## 7.4 启动脚本
+
+```python
+\manage.py
+
+
+
+```
+
+都很简单，不过注意，我这里发现debug模式没开，回去在init里开了。
+
+这里只有个回掉函数。
+一开始是用create_app函数来生成的。
+
+## 7.5 需求文件
+
+pip freeze >requirements.txt
+
+安装的方式是
+pip install -r requirements.txt
+
+## 7.6 单元测试
+
+这一块跳过去了。
+看得有点心烦。
+
+## 7.7 创建数据库
+python manage.py db upgrade
+
+这里依然是个坑。
+虽然知道原因，但是依然没能解决。
 
 
